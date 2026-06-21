@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  disk-catalog:
+    # Build locally using the Dockerfile in this directory
+    build:
+      context: .
+      args:
+        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+    image: disk-catalog:latest
+    container_name: disk-catalog
+    restart: unless-stopped
+
+    # CRITICAL: "network_mode: host" is used so we can access the NAS MariaDB 
+    # at '127.0.0.1:3307' (or 3306) easily.
+    # If we used bridge mode, 'localhost' would refer to the container itself.
+    network_mode: host
+
+    volumes:
+      # Map the NAS volumes so the scanner can see them
+      # ONLY needed if you plan to Scan disks/folders connected to the NAS.
+      # If you only use this to Browse existing data, you can leave this commented.
+      # - /volume1:/volume1:ro
+      # - /volumeUSB1/usbshare:/volumeUSB1/usbshare:ro  # Example for USB Drives
+
+      # Persist Application Logs
+      - ./Logs:/app/server/Logs
+
+    # Values are read from a local .env file (see .env.example). Never commit
+    # real secrets here.
+    environment:
+      - NODE_ENV=production
+      - PORT=${PORT:-3012}
+
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_PORT=${DB_PORT:-3306}
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+      - JWT_SECRET=${JWT_SECRET}

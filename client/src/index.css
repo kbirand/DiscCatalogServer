@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+.force-update-v2 {
+  content: "v2";
+}
+
+@theme {
+  --color-primary: var(--bg-primary);
+  --color-secondary: var(--bg-secondary);
+  --color-tertiary: var(--bg-tertiary);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-border: var(--border);
+}
+
+:root {
+  /* Koray Birand Unified Dark Theme - V4 Final */
+
+  /* Main Background: Distinct Blue-Grey (Not Black) */
+  --bg-primary: #121417;
+
+  /* Sidebar / Modals: Lighter Blue-Grey */
+  --bg-secondary: #1a1c23;
+
+  /* Inputs / Cards: Lighter yet */
+  --bg-tertiary: #23252e;
+
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  /* Gray 400 */
+  --text-muted: #6b7280;
+  /* Gray 500 */
+
+  /* Primary Accent: Vibrant Blue */
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-soft: rgba(59, 130, 246, 0.15);
+
+  --color-accent-pink: #d946ef;
+  --color-accent-purple: #8b5cf6;
+
+  --border: #2e3039;
+  /* Blue-tinted border */
+
+  /* Glassmorphism */
+  --glass-bg: rgba(26, 28, 35, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+@layer base {
+  body {
+    @apply bg-primary text-text-primary antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+  }
+
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Tree-Mode Scanner (Optimization Final)</title>
+    <style>
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            padding: 40px;
+            background: #f0f0f0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #eee;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .drop-zone {
+            border: 3px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .drop-zone.hover {
+            border-color: #007bff;
+            background: #e7f1ff;
+            color: #007bff;
+        }
+
+        .activity-bar {
+            width: 100%;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin-top: 20px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .activity-fill {
+            height: 100%;
+            background: #007bff;
+            width: 30%;
+            animation: move-indeterminate 1.5s infinite linear;
+            border-radius: 3px;
+        }
+
+        @keyframes move-indeterminate {
+            0% {
+                transform: translateX(-100%);
+                width: 10%;
+            }
+
+            50% {
+                width: 30%;
+            }
+
+            100% {
+                transform: translateX(400%);
+                width: 10%;
+            }
+        }
+
+        .count-badge {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+            margin-right: 10px;
+        }
+
+        .timer-badge {
+            display: inline-block;
+            background: #555;
+            color: white;
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: monospace;
+        }
+
+        .queue-badge {
+            display: inline-block;
+            background: #e67e22;
+            color: white;
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: monospace;
+            margin-left: 10px;
+        }
+
+        .btn-modern {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #28a745;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: background 0.2s;
+        }
+
+        .btn-modern:hover {
+            background: #218838;
+        }
+
+        .disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Tree-Mode Scanner</h1>
+        <p>Using Optimized Directory-Batch Protocol</p>
+
+        <div style="margin-bottom: 20px;">
+            <label style="font-weight:bold; font-size:14px;">Scanner Key:</label>
+            <input type="password" id="apiKeyInput" value="change_me_scanner_key"
+                style="padding:8px; border-radius:4px; border:1px solid #ccc; width:200px;">
+        </div>
+
+        <!-- Modern API Button -->
+        <button id="paramsBtn" class="btn-modern disabled">Select Folder (Fast V2)</button>
+
+        <div id="dropZone" class="drop-zone">
+            <h3>Or Drag Folder Here (V1)</h3>
+        </div>
+
+        <div class="activity-bar" id="activityBar">
+            <div class="activity-fill"></div>
+        </div>
+
+        <div id="status" class="status">Waiting for user...</div>
+        <div id="errorLog"
+            style="margin-top: 20px; padding: 15px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 8px; display: none; color: #d00; max-height: 200px; overflow-y: auto;">
+            <strong>Errors:</strong>
+            <div id="errorList" style="font-family: monospace; font-size: 12px; margin-top: 10px;"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const statusDiv = document.getElementById('status');
+        const activityBar = document.getElementById('activityBar');
+        const paramsBtn = document.getElementById('paramsBtn');
+        const errorLog = document.getElementById('errorLog');
+        const errorList = document.getElementById('errorList');
+
+        let startTime;
+        let scanCount = 0;
+        let uploadCount = 0;
+        let errorCount = 0;
+        const MAX_CONCURRENT_UPLOADS = 3;
+        let activeUploads = 0;
+        const uploadQueue = [];
+
+        function getApiKey() {
+            const input = document.getElementById('apiKeyInput');
+            return input ? input.value : 'change_me_scanner_key';
+        }
+
+        function resetUI() {
+            activityBar.style.display = 'block';
+            errorLog.style.display = 'block';
+            const d = document.createElement('div');
+            d.textContent = `[${new Date().toLocaleTimeString()}] ${msg} ${detail ? '(' + detail + ')' : ''}`;
+            errorList.appendChild(d);
+            console.error(msg, detail);
+        }
+
+        function resetUI() {
+            activityBar.style.display = 'block';
+            errorLog.style.display = 'none';
+            errorList.innerHTML = '';
+            startTime = Date.now();
+            scanCount = 0;
+            uploadCount = 0;
+            errorCount = 0;
+            activeUploads = 0;
+            uploadQueue.length = 0; // Clear queue
+        }
+
+        // --- CHECK API SUPPORT ---
+        if ('showDirectoryPicker' in window) {
+            paramsBtn.classList.remove('disabled');
+            paramsBtn.style.display = 'inline-block';
+
+            paramsBtn.addEventListener('click', async () => {
+                try {
+                    const dirHandle = await window.showDirectoryPicker();
+                    resetUI();
+                    log(`Opened "${dirHandle.name}". Scanning (Tree Mode V2)...`);
+
+                    await startScanV2(dirHandle);
+
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error(err);
+                        log(`Error: ${err.message}`);
+                    }
+                }
+            });
+        }
+
+        function getElapsedTime() {
+            const now = Date.now();
+            const diff = now - startTime;
+            return (diff / 1000).toFixed(1) + 's';
+        }
+
+        function log(msg) {
+            statusDiv.textContent = msg;
+        }
+
+        function updateStatus(lastFile) {
+            statusDiv.innerHTML = `
+            <div>
+                <span class="count-badge">${scanCount} Sourced</span>
+                <span class="timer-badge">${getElapsedTime()}</span>
+                <span class="queue-badge" title="Pending Uploads">Q: ${uploadQueue.length + activeUploads}</span>
+            </div>
+            <div style="font-size:0.9em; margin-top:5px; color:#555">Last: ${lastFile || 'Scanning...'}</div>
+            <div style="font-size:0.8em; margin-top:2px; color:#999">Uploaded: ${uploadCount}</div>
+        `;
+        }
+
+        // --- DRAG AND DROP HANDLERS (V1) ---
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+
+            const items = e.dataTransfer.items;
+            if (!items || items.length === 0) return;
+            const entry = items[0].webkitGetAsEntry();
+            if (!entry) return;
+
+            resetUI();
+            log(`Found "${entry.name}". Scanning (Tree Mode V1)...`);
+
+            try {
+                await startScan(entry);
+            } catch (err) {
+                logError("Scan Start Failed", err.message);
+                log(`Error: ${err.message}`);
+            }
+        });
+
+        // --- UPLOAD QUEUE ---
+        async function processQueue() {
+            if (activeUploads >= MAX_CONCURRENT_UPLOADS || uploadQueue.length === 0) return;
+            activeUploads++;
+            const task = uploadQueue.shift();
+            try {
+                await task();
+            } catch (err) {
+                console.error("Upload failed", err);
+            } finally {
+                activeUploads--;
+                processQueue();
+            }
+        }
+
+        // NEW: Accepts { dirPath, files: [[name, size, mtime], ...] }
+        // Modified to CHUNK the files to avoid massive payloads (max 2000 per request)
+        async function queueDirUpload(diskId, dirPath, files) {
+            const CHUNK_SIZE = 2000;
+            const promises = [];
+
+            for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+                const chunk = files.slice(i, i + CHUNK_SIZE);
+
+                const p = new Promise((resolve, reject) => {
+                    const task = async () => {
+                        try {
+                            await fetch('http://localhost:3001/api/debug/batch', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'x-api-key': getApiKey()
+                                },
+                                body: JSON.stringify({ diskId, dirPath, files: chunk })
+                            });
+                            uploadCount += chunk.length;
+                            resolve();
+                        } catch (e) {
+                            console.error("Chunk Error", e);
+                            reject(e);
+                        }
+                    };
+                    uploadQueue.push(task);
+                    processQueue();
+                });
+                promises.push(p);
+            }
+
+            // We return a promise that resolves when ALL chunks are QUEUED?
+            // Or properly processed?
+            // The original returned when processed.
+            // Let's return Promise.all(promises) so we await completion.
+            return Promise.all(promises);
+        }
+
+        async function waitForUploads() {
+            while (activeUploads > 0 || uploadQueue.length > 0) {
+                await new Promise(r => setTimeout(r, 100));
+                updateStatus("Finishing Uploads...");
+            }
+        }
+
+        async function startSession(name) {
+            const startRes = await fetch('http://localhost:3001/api/debug/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': getApiKey()
+                },
+                body: JSON.stringify({ name: name, total_space: 0 })
+            });
+            if (startRes.status === 403) throw new Error("Invalid Scanner Key");
+            if (!startRes.ok) {
+                const txt = await startRes.text();
+                throw new Error(`Server Error (${startRes.status}): ${txt}`);
+            }
+            const startData = await startRes.json();
+            return startData.diskId;
+        }
+
+        async function endSession(diskId) {
+            await fetch('http://localhost:3001/api/debug/end', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': getApiKey()
+                },
+                body: JSON.stringify({ diskId })
+            });
+        }
+
+        // --- SCANNER V1: WebkitEntry (Recursive) ---
+        async function startScan(rootEntry) {
+            const diskId = await startSession(rootEntry.name);
+
+            async function traverse(entry, path = '') {
+                if (entry.isFile) {
+                    // Should not happen in Tree Mode recursion unless root is file
+                    // We handle files inside directories
+                } else if (entry.isDirectory) {
+                    try {
+                        const dirReader = entry.createReader();
+                        const entries = await readAllEntries(dirReader);
+
+                        const filesInThisDir = [];
+
+                        for (const child of entries) {
+                            try {
+                                if (child.isDirectory) {
+                                    await traverse(child, path + entry.name + '/');
+                                } else if (child.isFile) {
+                                    const file = await new Promise((resolve, reject) => child.file(resolve, reject));
+                                    filesInThisDir.push([
+                                        child.name,
+                                        file.size,
+                                        file.lastModified
+                                    ]);
+                                    scanCount++;
+                                }
+                            } catch (err) {
+                                logError("Skipping item", `${child.name}: ${err.message}`);
+                            }
+                        }
+
+                        // Batch upload this directory's files
+                        if (filesInThisDir.length > 0) {
+                            const finalPath = path + entry.name;
+                            queueDirUpload(diskId, finalPath, filesInThisDir);
+
+                            updateStatus(entry.name);
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    } catch (dirErr) {
+                        logError("Failed to read directory", `${entry.name || 'unknown'}: ${dirErr.message}`);
+                    }
+                }
+            }
+
+            function readAllEntries(dirReader) {
+                return new Promise((resolve, reject) => {
+                    let allEntries = [];
+                    function read() {
+                        dirReader.readEntries((entries) => {
+                            if (entries.length === 0) {
+                                resolve(allEntries);
+                            } else {
+                                allEntries = allEntries.concat(entries);
+                                read();
+                            }
+                        }, (err) => {
+                            console.warn("Reader error, returning partial:", err);
+                            // Return what we have so far instead of failing
+                            resolve(allEntries);
+                        });
+                    }
+                    read();
+                });
+            }
+
+            await traverse(rootEntry, '');
+
+            await waitForUploads();
+            await endSession(diskId);
+
+            statusDiv.innerHTML = `
+            <div><span class="count-badge" style="background:green">SUCCESS (V1)</span></div>
+            <div>Time: ${getElapsedTime()}</div>
+            <div>Files: ${uploadCount}</div>
+        `;
+            activityBar.style.display = 'none';
+        }
+
+        // --- SCANNER V2: File System Access API (Handle) ---
+        async function startScanV2(dirHandle) {
+            const diskId = await startSession(dirHandle.name);
+
+            async function walk(handle, path = '') {
+                const filesInThisDir = [];
+
+                for await (const [name, entry] of handle.entries()) {
+                    if (entry.kind === 'file') {
+                        const file = await entry.getFile();
+                        filesInThisDir.push([
+                            name,
+                            file.size,
+                            file.lastModified
+                        ]);
+                        scanCount++;
+                    } else if (entry.kind === 'directory') {
+                        // Recursion first or after? 
+                        // Let's recurse AFTER gathering files in current dir (BFS-ish)
+                        // Actually DFS is fine.
+                        const currentPath = path ? `${path}/${name}` : name;
+                        await walk(entry, currentPath);
+                    }
+                }
+
+                // Upload files for THIS directory handle
+                if (filesInThisDir.length > 0) {
+                    // For root dirHandle: name="Photos", path="". 
+                    // We want server path to be "Photos/...". 
+                    // Wait, server expects RELATIVE path from root? 
+                    // If I scan "Photos", disk name is "Photos". 
+                    // Files in root should have dirPath=""? or "Photos"?
+                    // Let's assume standard: root files have dirPath="" (relative to disk root)
+                    // and subfolders have "A", "A/B".
+                    // BUT, dirHandle.name IS the disk name.
+
+                    // In walk("", path=""), files are at root.
+
+                    queueDirUpload(diskId, path, filesInThisDir);
+
+                    // Update UI after every directory sent
+                    updateStatus(path || 'root');
+                    // Yield to main thread to allow UI render
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            await walk(dirHandle, ""); // Start at root, empty path
+
+            await waitForUploads();
+            await endSession(diskId);
+
+            statusDiv.innerHTML = `
+            <div><span class="count-badge" style="background:green">SUCCESS (V2)</span></div>
+            <div>Time: ${getElapsedTime()}</div>
+            <div>Files: ${uploadCount}</div>
+        `;
+            activityBar.style.display = 'none';
+        }
+
+    </script>
+</body>
+
+</html>
